@@ -8,7 +8,6 @@ import numpy as np
 import time
 from ultralytics import YOLO
 from pathlib import Path
-from rembg import remove, new_session
 from tensorflow.keras.preprocessing import image
 import tensorflow as tf
 from tensorflow.keras.models import load_model
@@ -22,7 +21,7 @@ from ACGPN.predict_pose import generate_pose_keypoints
 
 # フォルダパスの設定
 #input_folder = "./input/test"
-input_folder = "./experiment/input/fafafa"
+input_folder = "./input/fafafa"
 output_folder = "./experiment/output/back_ground"
 small_area_folder = "./experiment/output/miss_file/small_area_images"
 missing_body_parts_folder = "./experiment/output/miss_file/missing_body_parts_images"
@@ -34,6 +33,7 @@ yolo_output_folder = "./experiment/output/yolo_detected"
 multi_person_folder = "./experiment/output/miss_file/multi_person_images"
 
 # 出力フォルダが存在しない場合は作成
+os.makedirs(input_folder, exist_ok=True)
 os.makedirs(output_folder, exist_ok=True)
 os.makedirs(small_area_folder, exist_ok=True)
 os.makedirs(missing_body_parts_folder, exist_ok=True)
@@ -44,26 +44,53 @@ os.makedirs(yolo_output_folder, exist_ok=True)
 os.makedirs(multi_person_folder, exist_ok=True)
 
 
-
 def back_ground():
-    remove_low_quality_images("./experiment/output/yolo_detected", "./experiment/output/low_quality")
-    session = new_session()
-    for file in Path("./experiment/output/yolo_detected").glob('*.jpg'):
-        input_path = str(file)
-        output_path = "./experiment/output/back_ground" + "/" + (file.stem + ".jpg")
+    #remove_low_quality_images("./experiment/output/yolo_detected", "./experiment/output/low_quality")
+    model = YOLO("yolov8x-seg.pt")
 
-        with open(input_path, 'rb') as i:
-            with open(output_path, 'wb') as o:
-                input = i.read()
-                output = remove(input, session=session)
-                o.write(output)
+    #処理する画像が入っているフォルダのパス
+    image_folder = "./experiment/output/yolo_detected"
+    output_folder = "./experiment/output/back_ground"
+    
+    # 出力フォルダが存在しない場合は作成
+    os.makedirs(output_folder, exist_ok=True)
+    
+    # フォルダ内の全ての画像ファイルを処理
+    for image_name in os.listdir(image_folder):
+        if image_name.endswith((".jpg", ".png")):
+            image_path = os.path.join(image_folder, image_name)
+            
+            # 画像を読み込む
+            img = cv2.imread(image_path)
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            original_height, original_width = img.shape[:2]
 
-        # 背景削除後の画像が正しく保存されているか確認
-        if not any(fname.endswith('.jpg') for fname in os.listdir(yolo_output_folder)):
-            print(f"No images found in {yolo_output_folder}. Please check the background removal step.")
-            exit(1)
+            # 推論の実行
+            results = model(image_path)
+
+            # マスクデータの取得（最初の結果を使用）
+            masks = results[0].masks.data.cpu().numpy()
+
+            # マスクを元の画像サイズにリサイズ
+            resized_masks = np.zeros((masks.shape[0], original_height, original_width))
+            for i in range(masks.shape[0]):
+                resized_masks[i] = cv2.resize(masks[i], (original_width, original_height))
+
+            # 最初のオブジェクトのマスクを使用
+            mask = resized_masks[0]
+
+            # マスクを0から255の範囲にスケーリングしてuint8に変換
+            mask_uint8 = (mask * 255).astype(np.uint8)
+
+            # ビット演算でマスクを適用
+            mask_applied_img = cv2.bitwise_and(img_rgb, img_rgb, mask=mask_uint8)
+
+            # マスク適用後の画像を保存
+            output_image_path = os.path.join(output_folder, f"{image_name}")
+            cv2.imwrite(output_image_path, cv2.cvtColor(mask_applied_img, cv2.COLOR_RGB2BGR))
+
     area_process()
-    remove_low_quality_images("./experiment/output/yolo_detected", "./experiment/output/low_quality")
+    #remove_low_quality_images("./experiment/output/yolo_detected", "./experiment/output/low_quality")
     #clean_and_rename_files()
 
 def area_process(source_folder = output_folder , destination_folder = small_area_folder):
@@ -78,7 +105,7 @@ def area_process(source_folder = output_folder , destination_folder = small_area
     
     print("Processing and moving images complete.")
 
-def remove_low_quality_images(source_folder, low_quality_folder, threshold=10):
+def remove_low_quality_images(source_folder, low_quality_folder, threshold=200):
     """
     Move low quality images based on sharpness to a different folder.
     """
@@ -256,49 +283,9 @@ def batch_process_images(image_dir, json_output_folder, image_output_folder, bat
         # GPUメモリのクリーンアップ
         subprocess.run(["nvidia-smi", "--gpu-reset"], stderr=subprocess.PIPE)
 
-def detect_person_yolo(input_folder = input_folder,yolo_output_folder= yolo_output_folder):
-    model = YOLO('yolov10x.pt')
-
-# 入力ディレクトリ内のすべての画像ファイルに対して処理を行う
-    for file_name in os.listdir(input_folder):
-        # 画像ファイルのパス
-        image_path = os.path.join(input_folder, file_name)
-    
-        # ファイルが画像かどうか確認
-        if not image_path.lower().endswith(('.png', '.jpg', '.jpeg')):
-            continue
-        
-        # 画像を読み込む
-        img = cv2.imread(image_path)
-    
-        if img is None:
-            print(f"Error: Unable to read image {image_path}.")
-            continue
-        
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-        # 推論を実行
-        results = model(img_rgb)
-    
-        # 「PERSON」ラベルの数をカウント
-        person_count = 0
-        for result in results:
-            for detection in result.boxes:
-                label = result.names[int(detection.cls)]
-                if label.lower() == 'person':
-                    person_count += 1
-    
-        # 「PERSON」ラベルが1つだけ検出された場合、画像を出力ディレクトリに移動
-        if person_count == 1:
-            shutil.move(image_path, os.path.join(yolo_output_folder, file_name))
-            print(f"Moved {image_path} to {yolo_output_folder}")
-        else:
-            # 「PERSON」ラベルが1つでない場合、画像を別のディレクトリに移動
-            shutil.move(image_path, os.path.join(multi_person_folder, file_name))
-    
     
 def openpose_process():
-    #openpose_done(output_folder)#output_folder -> yolo
+    #openpose_done(yolo_output_folder)#output_folder -> yolo
 
     # JSONフォルダーを解析
     json_folder = json_output_folder
@@ -401,15 +388,62 @@ def move_blurry_images(source_folder, destination_folder, threshold=200.0):
                 shutil.move(source_file_path, destination_file_path)
                 print(f"Moved blurry image: {source_file_path} to {destination_file_path}")
 
-move_blurry_images("./experiment/output/back_ground", "./experiment/output/low_quality")
 
 
-#detect_person_yolo(input_folder="/media/il/local2/Virtual_try_on/DeepFashion/train/image")
-#back_ground()
-#area_process()                
-#openpose_process()
-#detect_person_yolo(input_folder="./experiment/output/back_ground",yolo_output_folder="./experiment/output/back_ground")
-#classify_images_in_folder()
+def classify_and_crop_images(input_folder=input_folder, output_folder=yolo_output_folder, multi_person_folder=multi_person_folder, small_area_folder=small_area_folder, label_to_extract="person", threshold=0.2):
+    # モデルのロード（YOLOv5）
+    model = YOLO('yolov10x.pt')
+
+    # フォルダ内の各画像を処理
+    for img_filename in os.listdir(input_folder):
+        img_path = os.path.join(input_folder, img_filename)
+
+        # 画像を読み込み
+        img = Image.open(img_path)
+        img_width, img_height = img.size
+
+        # オブジェクト検出の実行
+        results = model(img_path)
+
+        # 初期化
+        person_count = 0
+        max_area_ratio = 0
+
+        # 検出結果を処理
+        for result in results:
+            for detection in result.boxes:
+                label = result.names[int(detection.cls)]
+                if label.lower() == label_to_extract:
+                    person_count += 1
+                    # バウンディングボックスの座標を取得
+                    x1, y1, x2, y2 = detection.xyxy[0].tolist()  # Tensorをリストに変換
+
+                    # バウンディングボックスの面積比を計算
+                    bbox_width = x2 - x1
+                    bbox_height = y2 - y1
+                    bbox_area = bbox_width * bbox_height
+                    img_area = img_width * img_height
+                    area_ratio = bbox_area / img_area
+                    if area_ratio > max_area_ratio:
+                        max_area_ratio = area_ratio
+
+                    # 画像をクロップ
+                    cropped_img = img.crop((x1, y1, x2, y2))
+                    cropped_img_filename = f'{img_filename}'
+
+                    # 条件に応じてクロップした画像を保存
+                    if person_count >= 2:
+                        cropped_img.save(os.path.join(multi_person_folder, cropped_img_filename))
+                    elif max_area_ratio < threshold:
+                        cropped_img.save(os.path.join(small_area_folder, cropped_img_filename))
+                    else:
+                        cropped_img.save(os.path.join(output_folder, cropped_img_filename))
+
+
+#classify_and_crop_images()
+#move_blurry_images("./experiment/output/yolo_detected", "./experiment/output/low_quality")
+#back_ground()              
+openpose_process()  
 #remove_low_quality_images("./experiment/output/back_ground", "./experiment/output/low_quality")
 # 完了メッセージ
 print("すべての画像処理と検出が完了しました。")
