@@ -1,0 +1,9 @@
+opencv-python-headless
+numpy
+ultralytics
+pathlib
+rembg
+tensorflow
+matplotlib
+pillow
+IPython
