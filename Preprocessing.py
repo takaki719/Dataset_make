@@ -17,8 +17,8 @@ import IPython
 import os
 import sys
 import glob
+import mediapipe as mp
 from ACGPN.predict_pose import generate_pose_keypoints
-
 # フォルダパスの設定
 #input_folder = "./input/test"
 input_folder = "./input/fafafa"
@@ -26,6 +26,7 @@ output_folder = "./experiment/output/back_ground"
 small_area_folder = "./experiment/output/miss_file/small_area_images"
 missing_body_parts_folder = "./experiment/output/miss_file/missing_body_parts_images"
 json_output_folder = "./experiment/output/json"
+coco_output_folder = "./experiment/output/json_coco"
 image_output_folder ="./experiment/output/image"
 alpha_folder = "./experiment/output/miss_file/alpha_images"
 openpose_models_folder = "./modules/openpose/models"
@@ -42,7 +43,6 @@ os.makedirs(image_output_folder, exist_ok=True)
 os.makedirs(alpha_folder, exist_ok=True)
 os.makedirs(yolo_output_folder, exist_ok=True)
 os.makedirs(multi_person_folder, exist_ok=True)
-
 
 def back_ground():
     #remove_low_quality_images("./experiment/output/yolo_detected", "./experiment/output/low_quality")
@@ -203,15 +203,6 @@ def copy_with_retries(src, dst, retries=3, delay=1):
         time.sleep(delay)
     return False
 
-def copy_with_retries(src, dst, retries=3):
-    for attempt in range(retries):
-        try:
-            shutil.copy(src, dst)
-            return True
-        except Exception as e:
-            print(f"Attempt {attempt+1} failed: {e}")
-    return False
-
 def resize_image(image_path, output_path, target_size):
     try:
         with Image.open(image_path) as img:
@@ -232,6 +223,7 @@ def openpose_done(image_dir):
         pose_path = os.path.join('./experiment/output/json',img_filename.replace('.jpg','_keypoints.json'))
         print(img, pose_path)
         generate_pose_keypoints(img, pose_path)
+
 
 def batch_process_images(image_dir, json_output_folder, image_output_folder, batch_size, openpose_models_folder):
     # 画像ファイルのリストを取得
@@ -285,7 +277,7 @@ def batch_process_images(image_dir, json_output_folder, image_output_folder, bat
 
     
 def openpose_process():
-    #openpose_done(yolo_output_folder)#output_folder -> yolo
+    openpose_done(yolo_output_folder)#output_folder -> yolo
 
     # JSONフォルダーを解析
     json_folder = json_output_folder
@@ -324,6 +316,97 @@ def openpose_process():
                     print(f"No people detected in: {json_filename}")
         else:
                 print(f"Invalid JSON structure in: {json_filename}")
+mp_pose = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
+
+def process_image_to_json(image_path, output_json_path):
+    # 画像の読み込み
+    image = cv2.imread(image_path)
+    
+    # RGBに変換
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+    # MediaPipe Poseインスタンスの作成
+    with mp_pose.Pose(static_image_mode=True, min_detection_confidence=0.5) as pose:
+        # 骨格推定を実行
+        results = pose.process(image_rgb)
+        
+        # JSONに書き込むデータ
+        landmarks_data = []
+
+        # 骨格が検出された場合の処理
+        if results.pose_landmarks:
+            for idx, landmark in enumerate(results.pose_landmarks.landmark):
+                landmarks_data.append({
+                    'id': idx,
+                    'x': landmark.x,
+                    'y': landmark.y,
+                    'z': landmark.z,
+                    'visibility': landmark.visibility
+                })
+
+            # JSONファイルに結果を保存
+            with open(output_json_path, 'w') as json_file:
+                json.dump(landmarks_data, json_file, indent=4)
+        else:
+            print(f"No landmarks found for {image_path}")
+
+# フォルダ内の全ての画像に対して骨格推定を実行
+def process_folder(input_folder, output_folder):
+    # 出力フォルダが存在しない場合は作成
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # フォルダ内の全てのファイルを処理
+    for filename in os.listdir(input_folder):
+        if filename.endswith(".jpg") or filename.endswith(".png"):
+            input_path = os.path.join(input_folder, filename)
+            # ファイル名の拡張子を.jpgや.pngから.jsonに変換
+            base_name = os.path.splitext(filename)[0]
+            output_path = os.path.join(output_folder, base_name + ".json")
+
+            print(f"Processing {input_path}...")
+            process_image_to_json(input_path, output_path)
+            print(f"Saved result to {output_path}")
+
+REQUIRED_LANDMARKS = [11, 12, 23, 24]
+
+# JSONから両肩と腰のデータが存在するかを確認する関数
+def check_keypoints_in_json(json_file_path):
+    # JSONファイルを開く
+    with open(json_file_path, 'r') as json_file:
+        landmarks = json.load(json_file)
+    
+    # 必要なランドマークが存在するかを確認
+    existing_landmark_ids = [landmark['id'] for landmark in landmarks]
+    
+    # 両肩と腰のランドマークが全て揃っているか確認
+    for required_id in REQUIRED_LANDMARKS:
+        if required_id not in existing_landmark_ids:
+            return False, f"Landmark ID {required_id} is missing"
+    
+    return True, "All required landmarks are present"
+
+# フォルダ内の全てのJSONファイルをチェック
+def process_json_folder(input_folder, output_folder, missing_body_parts_folder):
+    # 出力フォルダが存在しない場合は作成
+    if not os.path.exists(missing_body_parts_folder):
+        os.makedirs(missing_body_parts_folder)
+
+    for filename in os.listdir(input_folder):
+        if filename.endswith(".json"):
+            json_file_path = os.path.join(input_folder, filename)
+            exists, message = check_keypoints_in_json(json_file_path)
+            print(f"Result: {message}")
+
+            # 必要なキーポイントが不足している場合、画像を別のフォルダに移動
+            if not exists:
+                corresponding_image = os.path.join(output_folder, filename.replace("_keypoints.json", ".jpg"))
+                missing_body_parts_path = os.path.join(missing_body_parts_folder, filename.replace("_keypoints.json", ".jpg"))
+
+                # 対応する画像が存在するかを確認して移動
+                if os.path.exists(corresponding_image):
+                    os.rename(corresponding_image, missing_body_parts_path)
 
 model = load_model('image_classifier_model.h5')
 
@@ -442,8 +525,10 @@ def classify_and_crop_images(input_folder=input_folder, output_folder=yolo_outpu
 
 #classify_and_crop_images()
 #move_blurry_images("./experiment/output/yolo_detected", "./experiment/output/low_quality")
-#back_ground()              
-openpose_process()  
+#back_ground()
+process_folder(output_folder,json_output_folder)    
+process_json_folder(json_output_folder,output_folder,missing_body_parts_folder)       
+#openpose_process()  
 #remove_low_quality_images("./experiment/output/back_ground", "./experiment/output/low_quality")
 # 完了メッセージ
 print("すべての画像処理と検出が完了しました。")

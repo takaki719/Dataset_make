@@ -30,4 +30,4 @@ updated_labels_df = labels_df[labels_df['ImagePath'].isin(valid_image_paths)].co
 updated_labels_df.loc[:, 'ImagePath'] = updated_labels_df['ImagePath'].str.replace('.png', '.jpg')
 
 # 更新されたCSVファイルを保存
-updated_labels_df.to_csv('./test/updated_labels.csv', index=False)
+updated_labels_df.to_csv('./test/updated_labels1.csv', index=False)

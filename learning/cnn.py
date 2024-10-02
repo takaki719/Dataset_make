@@ -11,7 +11,7 @@ from tensorflow.keras.preprocessing import image
 import numpy as np
 
 # CSVファイルのロード
-file_path = './test/updated_labels.csv'
+file_path = './test/updated_labels1.csv'
 data = pd.read_csv(file_path)
 
 # データの前処理
