@@ -1,6 +1,7 @@
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
+# 転移学習のためのベースモデル（VGG16）の読み込み
+from tensorflow.keras.applications import VGG16
 import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -9,6 +10,8 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from tensorflow.keras.preprocessing import image
 import numpy as np
+# コールバックの設定（早期終了とモデルチェックポイント）
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
 # CSVファイルのロード
 file_path = './test/updated_labels1.csv'
@@ -70,8 +73,6 @@ validation_steps = int(np.ceil(test_generator.samples / test_generator.batch_siz
 print("Steps per epoch:", steps_per_epoch)
 print("Validation steps:", validation_steps)
 
-# 転移学習のためのベースモデル（VGG16）の読み込み
-from tensorflow.keras.applications import VGG16
 
 base_model = VGG16(weights='imagenet', include_top=False, input_shape=(150, 150, 3))
 
@@ -87,15 +88,12 @@ model = models.Sequential([
     layers.Dense(1, activation='sigmoid')
 ])
 
-# モデルのコンパイル
-from tensorflow.keras import optimizers
 
 model.compile(optimizer=optimizers.RMSprop(learning_rate=1e-5),
               loss='binary_crossentropy',
               metrics=['accuracy'])
 
-# コールバックの設定（早期終了とモデルチェックポイント）
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+
 
 early_stopping = EarlyStopping(monitor='val_loss', patience=5)
 model_checkpoint = ModelCheckpoint('best_model.keras', save_best_only=True)
@@ -164,6 +162,10 @@ print('Test accuracy:', test_acc)
 
 # 詳細な評価指標の表示
 from sklearn.metrics import classification_report, confusion_matrix
+# クラスインデックスの保存
+import json
+with open('class_indices.json', 'w') as f:
+    json.dump(train_generator.class_indices, f)
 
 # 予測値の取得
 test_generator.reset()
