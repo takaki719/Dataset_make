@@ -93,62 +93,6 @@ def back_ground():
     #remove_low_quality_images("./experiment/output/yolo_detected", "./experiment/output/low_quality")
     #clean_and_rename_files()
 
-def area_process(source_folder = output_folder , destination_folder = small_area_folder):
-    for filename in os.listdir(source_folder):
-        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
-            image_path = os.path.join(source_folder, filename)
-            occupancy = check_image_occupancy(image_path)
-            if occupancy is not None and occupancy <= 15:
-                dest_path = os.path.join(destination_folder, filename)
-                shutil.move(image_path, dest_path)
-                #print(f"Moved {filename} to {destination_folder}")
-    
-    print("Processing and moving images complete.")
-
-def remove_low_quality_images(source_folder, low_quality_folder, threshold=200):
-    """
-    Move low quality images based on sharpness to a different folder.
-    """
-    os.makedirs(low_quality_folder, exist_ok=True)
-
-    for filename in os.listdir(source_folder):
-        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
-            image_path = os.path.join(source_folder, filename)
-            try:
-                with Image.open(image_path) as img:
-                    sharpness = calculate_sharpness(img)
-                    if sharpness < threshold:
-                        dest_path = os.path.join(low_quality_folder, filename)
-                        shutil.move(image_path, dest_path)
-                        print(f"Moved low quality image: {filename} to {low_quality_folder}")
-            except Exception as e:
-                print(f"Error processing image {filename}: {e}")
-
-def calculate_sharpness(image):
-    """
-    Calculate the sharpness of an image.
-    """
-    image = image.convert("L")  # Convert to grayscale
-    edges = image.filter(ImageFilter.FIND_EDGES)
-    stat = ImageStat.Stat(edges)
-    return stat.mean[0]  # Return the mean of the edge image as the sharpness metric
-
-def clean_and_rename_files():
-    for filename in os.listdir(output_folder):
-        if filename.endswith("_alpha.png"):
-            # _alpha.pngファイルを移行
-            alpha_image_path = os.path.join(output_folder, filename)
-            new_alpha_path = os.path.join(alpha_folder, filename)
-            shutil.move(alpha_image_path, new_alpha_path)
-        elif filename.endswith("_rgba.png"):
-            # _rgba.pngファイルをリネーム
-            num_match = re.search(r"(\d+)_rgba\.png", filename)
-            if num_match:
-                num = num_match.group(1)
-                new_filename = f"{num}.png"
-                rgba_image_path = os.path.join(output_folder, filename)
-                new_image_path = os.path.join(output_folder, new_filename)
-                os.rename(rgba_image_path, new_image_path)
 
 def check_image_occupancy(image_path):
     try:
@@ -185,137 +129,6 @@ def area_process(source_folder = output_folder , destination_folder = small_area
     
     print("Processing and moving images complete.")
 
-def copy_with_retries(src, dst, retries=3, delay=1):
-    """
-    ファイルをコピーし、失敗した場合にリトライします。
-    :param src: コピー元ファイルパス
-    :param dst: コピー先ファイルパス
-    :param retries: リトライ回数
-    :param delay: リトライ間の待機時間（秒）
-    """
-    for attempt in range(retries):
-        try:
-            shutil.copy(src, dst)
-            if os.path.exists(dst):
-                return True
-        except Exception as e:
-            print(f"Error copying {src} to {dst}: {e}")
-        time.sleep(delay)
-    return False
-
-def resize_image(image_path, output_path, target_size):
-    try:
-        with Image.open(image_path) as img:
-            original_size = img.size
-            img = img.resize(target_size, Image.LANCZOS)
-            img.save(output_path)
-        resize_ratio = (original_size[0] / target_size[0], original_size[1] / target_size[1])
-    except Exception as e:
-        print(f"Failed to resize image {image_path}: {e}")
-        return False, None
-    return True, resize_ratio
-
-def openpose_done(image_dir):
-    images = [os.path.join(image_dir, f) for f in os.listdir(image_dir) if os.path.isfile(os.path.join(image_dir, f))]
-    # 各画像に対してポーズキーポイントを生成
-    for img in images:
-        img_filename = os.path.basename(img)
-        pose_path = os.path.join('./experiment/output/json',img_filename.replace('.jpg','_keypoints.json'))
-        print(img, pose_path)
-        generate_pose_keypoints(img, pose_path)
-
-
-def batch_process_images(image_dir, json_output_folder, image_output_folder, batch_size, openpose_models_folder):
-    # 画像ファイルのリストを取得
-    images = [os.path.join(image_dir, f) for f in os.listdir(image_dir) if os.path.isfile(os.path.join(image_dir, f))]
-    
-    # 出力フォルダーが存在しない場合は作成
-    os.makedirs(json_output_folder, exist_ok=True)
-    os.makedirs(image_output_folder, exist_ok=True)
-    
-    # 画像をバッチに分割して処理
-    for i in range(0, len(images), batch_size):
-        batch = images[i:i + batch_size]
-        batch_folder = os.path.join(image_dir, f"batch_{i//batch_size + 1}")
-        
-        # バッチ用フォルダーを作成
-        os.makedirs(batch_folder, exist_ok=True)
-        
-        # バッチ内の画像をバッチ用フォルダーにコピー
-        for image in batch:
-            destination = os.path.join(batch_folder, os.path.basename(image))
-            if not copy_with_retries(image, destination):
-                print(f"Failed to copy {image} to {destination} after multiple attempts.")
-                continue
-        
-        # OpenPoseコマンドを作成
-        openpose_cmd = [
-            "./modules/openpose/build/examples/openpose/openpose.bin",
-            "--image_dir", batch_folder,
-            "--hand",
-            "--disable_blending",
-            "--display", "0",
-            "--write_json", json_output_folder,
-            "--write_images", image_output_folder,
-            "--num_gpu", "1",
-            "--num_gpu_start", "0",
-            "--model_folder", openpose_models_folder,
-            "--net_resolution", "-656x368"  # ネットワーク解像度を低く設定
-        ]
-        
-        print(f"Processing batch {i//batch_size + 1}: {batch}")
-        process = subprocess.Popen(openpose_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            print(f"Error in batch {i//batch_size + 1}: {stderr.decode('utf-8')}")
-        
-        # バッチ用フォルダーを削除
-        shutil.rmtree(batch_folder)
-        
-        # GPUメモリのクリーンアップ
-        subprocess.run(["nvidia-smi", "--gpu-reset"], stderr=subprocess.PIPE)
-
-    
-def openpose_process():
-    openpose_done(yolo_output_folder)#output_folder -> yolo
-
-    # JSONフォルダーを解析
-    json_folder = json_output_folder
-
-    for json_filename in os.listdir(json_folder):
-        if json_filename.endswith("_keypoints.json"):
-            json_path = os.path.join(json_folder, json_filename)
-
-            with open(json_path, 'r') as f:
-                data = json.load(f)
-
-                if 'people' in data and len(data['people']) > 0:
-                    person = data['people'][0]
-                    keypoints = person['pose_keypoints']
-
-                    # 右肩、左肩、腰のインデックス
-                    right_shoulder_idx = 2 * 3  # 右肩
-                    left_shoulder_idx = 5 * 3  # 左肩
-                    hips_idx = 8 * 3  # 腰
-
-                    keypoints_present = all([
-                        keypoints[right_shoulder_idx] > 0 and keypoints[right_shoulder_idx + 1] > 0,
-                        keypoints[left_shoulder_idx] > 0 and keypoints[left_shoulder_idx + 1] > 0,
-                        keypoints[hips_idx] > 0 and keypoints[hips_idx + 1] > 0
-                    ])
-
-                    # 必要なキー・ポイントが不足している場合
-                    if not keypoints_present:
-                        corresponding_image = os.path.join(output_folder, json_filename.replace("_keypoints.json", ".jpg"))
-                        missing_body_parts_path = os.path.join(missing_body_parts_folder, json_filename.replace("_keypoints.json", ".jpg"))
-                        if os.path.exists(corresponding_image):
-                            os.rename(corresponding_image, missing_body_parts_path)
-                        else:
-                            print(f"File not found: {corresponding_image}")
-                else:
-                    print(f"No people detected in: {json_filename}")
-        else:
-                print(f"Invalid JSON structure in: {json_filename}")
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
@@ -389,6 +202,7 @@ def check_keypoints_in_json(json_file_path):
 
 # フォルダ内の全てのJSONファイルをチェック
 def process_json_folder(input_folder, output_folder, missing_body_parts_folder):
+
     # 出力フォルダが存在しない場合は作成
     if not os.path.exists(missing_body_parts_folder):
         os.makedirs(missing_body_parts_folder)
@@ -452,7 +266,7 @@ def is_blurry(image_path, threshold=200.0):
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
     return laplacian_var < threshold
 
-def move_blurry_images(source_folder, destination_folder, threshold=200.0):
+def move_blurry_images(source_folder, destination_folder, threshold=150.0):
     """
     フォルダー内のぼやけた画像を別のフォルダーに移動する。
     :param source_folder: 元のフォルダーのパス
@@ -523,12 +337,10 @@ def classify_and_crop_images(input_folder=input_folder, output_folder=yolo_outpu
                         cropped_img.save(os.path.join(output_folder, cropped_img_filename))
 
 
-#classify_and_crop_images()
-#move_blurry_images("./experiment/output/yolo_detected", "./experiment/output/low_quality")
-#back_ground()
+classify_and_crop_images()
+move_blurry_images("./experiment/output/back_ground", "./experiment/output/low_quality")
+back_ground()
 process_folder(output_folder,json_output_folder)    
 process_json_folder(json_output_folder,output_folder,missing_body_parts_folder)       
-#openpose_process()  
-#remove_low_quality_images("./experiment/output/back_ground", "./experiment/output/low_quality")
 # 完了メッセージ
 print("すべての画像処理と検出が完了しました。")
