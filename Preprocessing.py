@@ -24,12 +24,12 @@ import pathlib as Path
 EXPERIMENT = "./test"
 
 # フォルダパスの設定
-input_folder = "./input/test/image/"
-#input_folder = "./input/fafafa/"
+input_folder = "./input/test/image"
+#input_folder = "./input/fafafa"
 
-output_folder = EXPERIMENT + "output/back_ground"
+output_folder = EXPERIMENT + "/output/back_ground"
 small_area_folder = EXPERIMENT + "/output/miss_file/small_area_images"
-missing_body_parts_folder = EXPERIMENT + "output/miss_file/missing_body_parts_images"
+missing_body_parts_folder = EXPERIMENT + "/output/miss_file/missing_body_parts_images"
 json_output_folder = EXPERIMENT + "/output/json"
 alpha_folder = EXPERIMENT + "/output/miss_file/alpha_images"
 yolo_output_folder = EXPERIMENT + "/output/yolo_detected"
