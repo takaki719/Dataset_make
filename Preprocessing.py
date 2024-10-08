@@ -25,7 +25,7 @@ EXPERIMENT = "./test"
 
 # フォルダパスの設定
 input_folder = "./input/test/image/"
-#input_folder = "./input/fafafa"
+#input_folder = "./input/fafafa/"
 
 output_folder = EXPERIMENT + "output/back_ground"
 small_area_folder = EXPERIMENT + "/output/miss_file/small_area_images"
