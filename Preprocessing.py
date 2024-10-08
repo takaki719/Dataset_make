@@ -19,19 +19,23 @@ import sys
 import glob
 import mediapipe as mp
 from ACGPN.predict_pose import generate_pose_keypoints
+import pathlib as Path
+
+EXPERIMENT = "./test"
+
 # フォルダパスの設定
-#input_folder = "./input/test"
-input_folder = "./input/fafafa"
-output_folder = "./experiment/output/back_ground"
-small_area_folder = "./experiment/output/miss_file/small_area_images"
-missing_body_parts_folder = "./experiment/output/miss_file/missing_body_parts_images"
-json_output_folder = "./experiment/output/json"
-coco_output_folder = "./experiment/output/json_coco"
-image_output_folder ="./experiment/output/image"
-alpha_folder = "./experiment/output/miss_file/alpha_images"
-openpose_models_folder = "./modules/openpose/models"
-yolo_output_folder = "./experiment/output/yolo_detected"
-multi_person_folder = "./experiment/output/miss_file/multi_person_images"
+input_folder = "./input/test/image/"
+#input_folder = "./input/fafafa"
+
+output_folder = EXPERIMENT + "output/back_ground"
+small_area_folder = EXPERIMENT + "/output/miss_file/small_area_images"
+missing_body_parts_folder = EXPERIMENT + "output/miss_file/missing_body_parts_images"
+json_output_folder = EXPERIMENT + "/output/json"
+alpha_folder = EXPERIMENT + "/output/miss_file/alpha_images"
+yolo_output_folder = EXPERIMENT + "/output/yolo_detected"
+multi_person_folder = EXPERIMENT + "/output/miss_file/multi_person_images"
+
+classfy_folder = EXPERIMENT + "/output/classfy"
 
 # 出力フォルダが存在しない場合は作成
 os.makedirs(input_folder, exist_ok=True)
@@ -39,7 +43,6 @@ os.makedirs(output_folder, exist_ok=True)
 os.makedirs(small_area_folder, exist_ok=True)
 os.makedirs(missing_body_parts_folder, exist_ok=True)   
 os.makedirs(json_output_folder, exist_ok=True)
-os.makedirs(image_output_folder, exist_ok=True)
 os.makedirs(alpha_folder, exist_ok=True)
 os.makedirs(yolo_output_folder, exist_ok=True)
 os.makedirs(multi_person_folder, exist_ok=True)
@@ -266,7 +269,7 @@ def is_blurry(image_path, threshold=200.0):
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
     return laplacian_var < threshold
 
-def move_blurry_images(source_folder, destination_folder, threshold=150.0):
+def move_blurry_images(source_folder, destination_folder, threshold=200.0):
     """
     フォルダー内のぼやけた画像を別のフォルダーに移動する。
     :param source_folder: 元のフォルダーのパス
@@ -336,11 +339,90 @@ def classify_and_crop_images(input_folder=input_folder, output_folder=yolo_outpu
                     else:
                         cropped_img.save(os.path.join(output_folder, cropped_img_filename))
 
+def remove_similar_images_by_color(folder_path, reference_image_path, threshold=10):
+    removed_images = []
+    try:
+        with Image.open(reference_image_path) as ref_img:
+            ref_img = ref_img.resize((100, 100))
+            ref_avg_color = np.array(ref_img).mean(axis=(0, 1))  # Calculate the average color of the reference image
 
+        for filename in os.listdir(folder_path):
+            if filename.endswith(('.jpg', '.jpeg', '.png')):
+                img_path = os.path.join(folder_path, filename)
+                with Image.open(img_path) as img:
+                    img = img.resize((100, 100))
+                    avg_color = np.array(img).mean(axis=(0, 1))
+                    color_diff = np.linalg.norm(ref_avg_color - avg_color)  # Calculate color difference
+
+                    if color_diff < threshold:  # If color difference is below threshold, remove the image
+                        os.remove(img_path)
+                        removed_images.append(filename)
+
+        return removed_images
+    except Exception as e:
+        return str(e)
+
+def classfy(folder_path):
+    # モデルのロード
+    model = tf.keras.models.load_model('best_model1.keras')
+    # トレーニング時のクラスインデックスを保存していない場合、手動で定義します
+    class_labels = {'0': 'Not Front', '1': 'Front'}
+    def preprocess_image(img_path):
+        # 画像の読み込みとリサイズ
+        img = image.load_img(img_path, target_size=(150, 150))
+        # 画像を配列に変換
+        img_array = image.img_to_array(img)
+        # 次元を拡張してバッチサイズ1にする
+        img_array = np.expand_dims(img_array, axis=0)
+        # ピクセル値を0-1の範囲にスケーリング
+        img_array /= 255.0
+        return img_array
+
+
+    def classify_and_save_images(img_paths, output_folder):
+        for img_path in img_paths:
+            # 画像の前処理
+            img_array = preprocess_image(img_path)
+            # 予測の実行
+            prediction = model.predict(img_array)
+            # 予測結果の解釈
+            predicted_class = (prediction > 0.5).astype('int32')[0][0]
+            class_name = class_labels[str(predicted_class)]
+
+            # 出力先フォルダのパスを作成
+            class_folder = os.path.join(output_folder, class_name)
+            if not os.path.exists(class_folder):
+                os.makedirs(class_folder)
+
+            # ファイル名を取得
+            file_name = os.path.basename(img_path)
+            # 新しいファイルパスを作成
+            destination = os.path.join(class_folder, file_name)
+
+            # ファイルをコピー
+            shutil.copy(img_path, destination)
+
+            print(f"Image {file_name} is classified as: {class_name} and saved to {destination}")
+
+    def classify_images_in_folder_and_save(folder_path, output_folder):
+        # 対応する画像拡張子を指定
+        img_extensions = ('*.png', '*.jpg', '*.jpeg', '*.bmp', '*.gif')
+        img_paths = []
+        for ext in img_extensions:
+            img_paths.extend(glob.glob(os.path.join(folder_path, ext)))
+
+        classify_and_save_images(img_paths, output_folder)
+
+    classify_images_in_folder_and_save(folder_path, output_folder)
+
+
+
+
+#remove_similar_images_by_color("./input/fafafa", "./experiment/output/miss_file/low_quality")
 classify_and_crop_images()
-move_blurry_images("./experiment/output/back_ground", "./experiment/output/low_quality")
 back_ground()
 process_folder(output_folder,json_output_folder)    
-process_json_folder(json_output_folder,output_folder,missing_body_parts_folder)       
+process_json_folder(json_output_folder,output_folder,missing_body_parts_folder)
+classfy(output_folder,classfy_folder)
 # 完了メッセージ
 print("すべての画像処理と検出が完了しました。")
