@@ -227,24 +227,18 @@ def main(input_paths, output_paths, mask_paths,label_paths,img_paths):
         os.makedirs(label_folder, exist_ok=True)
         os.makedirs(img_folder, exist_ok=True)
         # Run external segmentation scriptフォルダーから画像ファイルを読み込んで、最初の画像から000001_1.jpgとして、次は000002_1.jpgとして、ならべていきたい。
-        #resize_and_copy_images(input_folder,img_folder)
-        #subprocess.run([
-        #    "python3", "/media/il/local2/Virtual_try_on/Preprocessing/Self-Correction-Human-Parsing-for-ACGPN/simple_extractor.py",
-        #    '--dataset', 'atr',
-        #    '--model-restore', '/media/il/local2/Virtual_try_on/Preprocessing/Self-Correction-Human-Parsing-for-ACGPN/atr.pth',
-        #    '--input-dir', img_folder,
-        #    '--output-dir', label_folder
-        #], stdout=PIPE, stderr=PIPE)
+        #resize_and_copy_images(input_folder,img_folder) #img画像のリサイズ
+        subprocess.run([
+            "/media/il/local2/Virtual_try_on/Preprocessing/pre_venv/bin/python", "/media/il/local2/Virtual_try_on/Preprocessing/name_.py",
+        ], stdout=PIPE, stderr=PIPE)
         subprocess.run([
             "/media/il/local2/Virtual_try_on/Preprocessing/pre_venv/bin/python", "/media/il/local2/Virtual_try_on/Preprocessing/modules/UniHCP-inference/inference_for_dataset.py",
             '--input_dir', input_folder,
             '--label_dir', label_folder,
         ], stdout=PIPE, stderr=PIPE)
-        # Process images
-
-        #process_images(img_folder, output_folder, label_folder, mask_folder)
-        resize_and_overwrite_images(label_folder)
-        #process_folder_for_largest_contour(output_folder,output_folder)
+        #process_images(img_folder, output_folder, label_folder, mask_folder)　#画像の前処理
+        resize_and_overwrite_images(label_folder) #label画像のリサイズ
+        #process_folder_for_largest_contour(output_folder,output_folder) #最大の輪郭を抽出
 # Example usage with dynamic paths
 input_paths = [
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/back_ground1',
@@ -255,7 +249,7 @@ input_paths = [
     #'/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/身体の対称性/forward'
 ]
 output_paths = [
-    '/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro/color',
+    '/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro_tmp/color',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/スケルトン全体の形状に基づく判定/prepro/color',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/四肢の対称性に基づく判定/prepro/color',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/左右の肩と腰のx座標の差,中心線の直線性/prepro/color',
@@ -263,7 +257,7 @@ output_paths = [
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/身体の対称性/prepro/color'
 ]
 mask_paths = [
-    '/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro/mask',
+    '/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro_tmp/mask',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/スケルトン全体の形状に基づく判定/prepro/mask',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/四肢の対称性に基づく判定/prepro/mask',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/左右の肩と腰のx座標の差,中心線の直線性/prepro/mask',
@@ -271,7 +265,7 @@ mask_paths = [
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/身体の対称性/prepro/mask'
 ]
 label_paths = [
-    '/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro/label',
+    '/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro_tmp/label',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/スケルトン全体の形状に基づく判定/prepro/label',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/四肢の対称性に基づく判定/prepro/label',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/左右の肩と腰のx座標の差,中心線の直線性/prepro/label',
@@ -279,7 +273,7 @@ label_paths = [
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/身体の対称性/prepro/label'
 ]
 img_paths = [
-    '/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro/img',
+    '/media/il/local2/Virtual_try_on/Preprocessing/test/prepro_tmp/img',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/スケルトン全体の形状に基づく判定/prepro/img',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/四肢の対称性に基づく判定/prepro/img',
     '/media/il/local2/Virtual_try_on/Preprocessing/test/output/判別結果/左右の肩と腰のx座標の差,中心線の直線性/prepro/img',

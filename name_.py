@@ -97,22 +97,26 @@ def rename_images_in_folder_json(folder_path):
 #    "/media/il/local2/Virtual_try_on/Preprocessing/test/output/json",
 #]
 folders = [
+    "/media/il/local2/Virtual_try_on/Preprocessing/test/output/back_ground1",
     "/media/il/local2/Virtual_try_on/Preprocessing/test/prepro_tmp/img",
     "/media/il/local2/Virtual_try_on/Preprocessing/test/prepro_tmp/mask",
     "/media/il/local2/Virtual_try_on/Preprocessing/test/prepro_tmp/color",
-    "/media/il/local2/Virtual_try_on/Preprocessing/test/prepro_tmp/label",
     "/media/il/local2/Virtual_try_on/Preprocessing/test/prepro_tmp/json",
 ]
-# 配列内のフォルダーを順に比較して処理
-#compare_and_delete(folders[0], folders[1])
-#compare_and_delete(folders[1], folders[2])
-#compare_and_delete(folders[2], folders[3])
-#compare_and_delete(folders[3], folders[4])
-#compare_and_delete(folders[4], folders[0])
 
-# 最初のフォルダーでリネーム処理
-#rename_images_in_folder_0(folders[0])
-#rename_images_in_folder(folders[1])
-#rename_images_in_folder(folders[2])
-#rename_images_in_folder_0(folders[3])
-#rename_images_in_folder_json(folders[4])
+compare_and_delete(folders[0], folders[1])
+compare_and_delete(folders[1], folders[2])
+compare_and_delete(folders[2], folders[3])
+compare_and_delete(folders[3], folders[4])
+compare_and_delete(folders[4], folders[0])
+compare_and_delete(folders[0], folders[1])
+compare_and_delete(folders[1], folders[2])
+compare_and_delete(folders[2], folders[3])
+compare_and_delete(folders[3], folders[4])
+compare_and_delete(folders[4], folders[0])
+#最初のフォルダーでリネーム処理
+rename_images_in_folder_0(folders[0])
+rename_images_in_folder(folders[1])
+rename_images_in_folder(folders[2])
+rename_images_in_folder_0(folders[3])
+rename_images_in_folder_json(folders[4])
