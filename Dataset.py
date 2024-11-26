@@ -19,23 +19,24 @@ import sys
 import glob
 from ACGPN.predict_pose import generate_pose_keypoints
 import pathlib as Path
+from subprocess import PIPE, run
 
-EXPERIMENT = "./test"
+EXPERIMENT = "./test/output"
 
 # フォルダパスの設定
 input_folder = "/media/il/local2/Virtual_try_on/Preprocessing/Deepfashion/test/test/image"
 #input_folder = "./input/fafafa"
 
-output_folder = EXPERIMENT + "/output/back_ground1"
-small_area_folder = EXPERIMENT + "/output/miss_file/small_area_images"
-missing_body_parts_folder = EXPERIMENT + "/output/miss_file/missing_body_parts_images"
-json_output_folder = EXPERIMENT + "/output/json"
-alpha_folder = EXPERIMENT + "/output/miss_file/alpha_images"
-yolo_output_folder = EXPERIMENT + "/output/yolo_detected"
-multi_person_folder = EXPERIMENT + "/output/miss_file/multi_person_images"
-missing_json_folder = EXPERIMENT + "/output/miss_file/missing_json"
+output_folder = EXPERIMENT + "/other/back_ground"
+small_area_folder = EXPERIMENT + "/other/miss_file/small_area_images"
+missing_body_parts_folder = EXPERIMENT + "/other/miss_file/missing_body_parts_images"
+json_output_folder = EXPERIMENT + "/prepro/json"
+alpha_folder = EXPERIMENT + "/other/miss_file/alpha_images"
+yolo_output_folder = EXPERIMENT + "/other/yolo_detected"
+multi_person_folder = EXPERIMENT + "/other/miss_file/multi_person_images"
+missing_json_folder = EXPERIMENT + "/other/miss_file/missing_json"
 
-classify_folder = EXPERIMENT + "/output/classify"
+classify_folder = EXPERIMENT + "/output/other/classify"
 
 # 出力フォルダが存在しない場合は作成
 os.makedirs(input_folder, exist_ok=True)
@@ -178,10 +179,6 @@ REQUIRED_KEYPOINTS = {
     'right_shoulder': 6,
     'left_hip': 11,
     'right_hip': 12,
-    'left_elbow': 7,
-    'right_elbow': 8,
-    'left_wrist': 9,
-    'right_wrist': 10
 }
 # 信頼度の閾値
 CONFIDENCE_THRESHOLD = 0.9
@@ -304,6 +301,25 @@ def process_json_folder(json_output_folder, input_folder, missing_body_parts_fol
                 else:
                     print(f"Image file not found for {base_name}, skipping.")
 
+def compare_and_delete(folder1_path, folder2_path):
+    # フォルダーのパスを取得
+    folder1 = Path(folder1_path)
+    folder2 = Path(folder2_path)
+
+    # フォルダー内のファイル名を取得（拡張子を除いた名前を比較用キーとして抽出）
+    folder1_files = {f.stem.split('_')[0] for f in folder1.iterdir() if f.is_file()}
+    folder2_files = {f.stem.split('_')[0] for f in folder2.iterdir() if f.is_file()}
+
+    # 両方のフォルダーに存在しないファイルを見つける
+    only_in_folder1 = folder1_files - folder2_files
+
+    # フォルダー1から削除
+    for file_stem in only_in_folder1:
+        for file_path in folder1.iterdir():
+            if file_path.stem.split('_')[0] == file_stem:
+                file_path.unlink()
+                print(f"Deleted from folder1: {file_path.name}")
+
     
 def main():
 
@@ -311,10 +327,12 @@ def main():
     model = YOLO("yolo11x-pose.pt")  # モデルパスを適宜変更してください
 
     # 画像フォルダを処理してJSONを生成
-    #process_folder(output_folder, json_output_folder,missing_json_folder,model)
+    process_folder(output_folder, json_output_folder,missing_json_folder,model)
 
     # JSONフォルダを処理して欠損キーポイント画像を移動
     process_json_folder(json_output_folder, output_folder, missing_body_parts_folder)
+
+    #compare_and_delete(output_folder, json_output_folder)
     
 def classify_and_crop_images(input_folder=input_folder, output_folder=yolo_output_folder, multi_person_folder=multi_person_folder, small_area_folder=small_area_folder, label_to_extract="person", threshold=0.4):
     # モデルのロード（YOLOv5）
@@ -517,10 +535,18 @@ def classify(folder_path, output_folder):
 
 #62629
 
-#remove_similar_images_by_color("./input/fafafa", "./experiment/output/miss_file/low_quality")
-#classify_and_crop_image()
-#back_ground(yolo_output_folder,output_folder)
+classify_and_crop_image()
+back_ground(yolo_output_folder,output_folder)
 main()
+subprocess.run([
+    "/media/il/local2/Virtual_try_on/Preprocessing/pre_venv/bin/python", "/media/il/local2/Virtual_try_on/Preprocessing/name.py",
+], stdout=PIPE, stderr=PIPE)
+subprocess.run([
+    "/media/il/local2/Virtual_try_on/Preprocessing/pre_venv/bin/python", "/media/il/local2/Virtual_try_on/Preprocessing/Preprocessing.py",
+], stdout=PIPE, stderr=PIPE)
+#subprocess.run([
+#    "/media/il/local2/Virtual_try_on/Preprocessing/pre_venv/bin/python", "/media/il/local2/Virtual_try_on/Preprocessing/trans_file.py",
+#], stdout=PIPE, stderr=PIPE)
 #classify(output_folder,classify_folder)
 # 完了メッセージ
 print("すべての画像処理と検出が完了しました。")

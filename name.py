@@ -90,24 +90,12 @@ def rename_images_in_folder_json(folder_path):
 
 # フォルダーのパスを配列で指定
 folders = [
-    "/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro/img",
-    "/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro/mask",
+    "/media/il/local2/Virtual_try_on/Preprocessing/test/output/other/back_ground",
+    "/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro//mask",
     "/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro/color",
     "/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro/label",
     "/media/il/local2/Virtual_try_on/Preprocessing/test/output/prepro/json",
 ]
 
-#compare_and_delete(folders[0], folders[4])
+compare_and_delete(folders[0], folders[4])
 
-compare_and_delete(folders[0], folders[1])
-compare_and_delete(folders[1], folders[2])
-compare_and_delete(folders[2], folders[3])
-compare_and_delete(folders[3], folders[4])
-compare_and_delete(folders[4], folders[0])
-
-#最初のフォルダーでリネーム処理
-rename_images_in_folder_0(folders[0])
-rename_images_in_folder_0(folders[1])
-rename_images_in_folder(folders[2])
-rename_images_in_folder_0(folders[3])
-rename_images_in_folder_json(folders[4])
