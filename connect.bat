@@ -1,1 +1,0 @@
-ssh lab_ishikawa01@172.21.1.123
